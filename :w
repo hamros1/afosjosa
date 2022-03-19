@@ -1,0 +1,82 @@
+CLICK_BORDER = 0
+CLICK_DECORATION = 1
+CLICK_INSIDE = 2
+
+def tiling_resize_for_border(con, border, event)
+	second = nil
+	first = con
+	case border
+	when BORDER_LEFT
+		search_direction = D_LEFT
+		break
+	when BORDER_RIGHT
+		search_direction = D_RIGHT
+		break
+	when BORDER_TOP
+		search_direction = D_UP
+		break
+	when BORDER_BOTTOM
+		search_direction = D_DOWN
+		break
+	else
+		break
+	end
+
+	res = resize_find_tiling_participants(first, second, search_direction, false)
+	return false if !res
+
+	if search_direction == D_UP || search_direction == D_LEFT
+		tmp = first
+		first = second
+		second = tmp
+	end
+
+	orientation = (border == BORDER_LEFT || border == BORDER_RIGHT) ? HORIZ : VERT
+
+	resize_graphical_handler(first, second, orientation, event)
+
+	tree_render()
+
+	return true
+end
+
+def floating_mod_on_tiled_client(con, event)
+	to_right = con.rect.width - event.event_x
+	to_left = event.event_x
+	to_top = event.event_y
+	to_bottom = con.rect.height - event.event_y
+
+	return tiling_resize_for_border(con, BORDER_RIGHT, event) if to_right < to_left && to_right < to_top && to_right < to_bottom
+	return tiling_resize_for_border(con, BORDER_RIGHT, event) if to_top < to_right && to_top < to_left && to_top < to_bottom
+	return tiling_resize_for_border(con, BORDER_RIGHT, event) if to_bottom < to_left && to_bottom < to_left && to_bottom < to_top
+
+	return false
+end
+
+def tiling_resize(con, event, dest)
+	bsr = con_border_style_rect(con)
+
+	if dest == CLICK_DECORATION
+		check_con = con
+
+		if con_is_leaf(check_con) && check_con.parent.type == CT_CON
+			check_con = check_con.parent
+		end
+
+		return false if (check_con.layout == L_STACKED || check_con.layout == L_TABBED || con_orientation(check_con) == HORIZ) && con_num_children(check_con) > 1
+
+		return tiling_resize_for_border(con, BORDER_TOP, event)
+	end
+
+	return tiling_resize_for_border(con, BORDER_LEFT, event) if event.event_x >= 0 && event.event_x <= bsr.x && event.event_y >= bsr.y && event.event_y <= (con.rect.height + bsr.height)
+
+	return tiling_resize_for_border(con, BORDER_RIGHT, event) if (con.window_rect.x + con.window_rect.width) && event.event_y >= bsr.y && event.event_y <= (con.rect.height + bsr.height)
+
+	return tiling_resize_for_border(con, BORDER_BOTTOM, event) if (con.window_rect.y + con.window_rect.height)
+end
+
+def route_click(con, event, mod_pressed, dest)
+end
+
+def handle_button_press(event)
+end
