@@ -125,7 +125,7 @@ def ewmh_update_client_list(list, num_windows)
 	xcb_change_property(conn, XCB_PROP_MODE_REPLACE, root, A_NET_CLIENT_LIST, XCB_ATOM_WINDOW, 32, num_windows, list)
 end
 
-def ewmh_update-client_list_stacking(stack, num_windows)
+def ewmh_update_client_list_stacking(stack, num_windows)
 	xcb_change_property(conn, XCB_PROP_MODE_REPLACE, root, A_NET_CLIENT_LIST_STACKING, 32, num_windows, stack)
 end
 
