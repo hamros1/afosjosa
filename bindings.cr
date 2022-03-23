@@ -1,7 +1,6 @@
 def mode_from_name(name, pango_markup)
 end
 
-
 def configure_binding(bindtype, modifiers, input_code, release, border, whole_window, exclude_titlebar, command, modename, pango_markup)
 	new_binding.release = release.nil? B_UPON_KEYRELEASE : B_UPON_KEYPRESS
 	new_binding.border = !border.nil?
