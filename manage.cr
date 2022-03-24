@@ -78,4 +78,61 @@ def manage_window(window, cookie, needs_to_be_mapped)
 	state_reply = xcb_get_property_reply(conn, wm_type_cookie, nil)
 	startup_id_reply = xcb_get_property_reply(conn, startup_id_cookie, nil)
 	startup_ws = startup_workspace_for_window(cwindow, startup_id_reply)
+	wm_desktop_reply = xcb_get_property_reply(conn, wm_desktop_cookie, nil)
+	cwindow.wm_desktop = NET_WM_DESKTOP_NONE
+	if !wm_desktop_reply && xcb_get_property_value_length(wm_desktop_reply)
+		wm_desktops = xcb_get_property_value(wm_desktop_reply)
+		cwindow.wm_desktop = wm_desktops[0]
+	end
+	cwindow.needs_take_focus = window_supports_protocol(cwindow.id, A_WM_TAKE_FOCUS)
+	cwindow.window_type = xcb_get_preffered_window_type(type_reply)
+	search_at = croot
+	if xcb_reply_contains_atom(type_reply, A_NET_WM_WINDOW_TYPE_DOCK)
+		output = get_output_containing(geom.x, geom.y)
+		if !output
+			search_at = output.con
+		end
+		if cwindow.reserved_top > 0 && cwindow.reserved.bottom = 0
+			cwindow.dock = W_DOCK_TOP
+		elsif cwindow.reserved_top == 0 && cwindow.reserved.bottom > 0
+			cwindow.dock = W_DOCK_BOTTOM
+		else
+			if geom.y < search_at.rect.height / 2
+				cwindow.dock = W_DOCK_TOP
+			else
+				cwindow.dock = W_DOCK_BOTTOM
+			end
+		end
+	end
+	nc = con_for_window(search_at, cwindow, pointerof(match))
+	match_from_restart_mode = (match && match.restart_mode)
+	if !nc
+		if assignment = assignment_for(cwindow, A_TO_WORKSPACE) || assignment = assignment_for(cwindow, A_TO_WORKSPACE_NUMBER)
+			if assignment.type == A_TO_WORKSPACE_NUMBER
+				parsed_num = ws_name_to_number(assignment.dest.workspace)
+				croot.nodes_head.each do |output|
+					grep_first(assigned_ws, output_get_content(output), child.num == parsed_num)
+				end
+			end
+			if !assigned_ws
+				assigned_ws = workspace_get(assignment.dest.workspace.nil)
+			end
+			nc = con_descend_tiling_focused(assigned_ws)
+			if nc.type == CT_WORKSPACE
+				nc = tree_open_con(nc, cwindow)
+			else
+				nc = tree_open_con(nc.parent, cwindow)
+			end
+			if !workspace_is_visible(assigned_ws)
+				urgency_hint = true
+			end
+		elsif cwindow.wm_desktop != NET_WM_DESKTOP_NONE && cwindow.wm_desktop != NET_WM_DESKTOP_ALL && (wm_desktop_ws = ewmh_get_workspace_by_index(cwindow.wm_desktop))
+			nc = con_descend_tiling_focused(wm_desktop_ws)
+			if nc.type == CT_WORKSPACE
+				nc = tree_open_con(nc, cwindow)
+			else
+				nc = tree_open_con(nc.parent, cwindow)
+			end
+		end
+	end
 end
