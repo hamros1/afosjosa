@@ -133,6 +133,145 @@ def manage_window(window, cookie, needs_to_be_mapped)
 			else
 				nc = tree_open_con(nc.parent, cwindow)
 			end
+			if !workspace_is_visible(assigned_ws)
+				urgency_hint = true
+			elsif cwindow.wm_desktop != NET_WM_DESKTOP_NONE && cwindow.wm_desktop != NET_WM_DESKTOP_ALL && wm_desktop_ws = ewmh_get_workspace_by_index(cwindow.wm_desktop)
+				nc = con_descend_focused(wm_desktop_ws)
+				if nc.type == CT_WORKSPACE
+					nc = tree_open_con(nc, cwindow)
+				else
+					nc = tree_open_con(nc.parent, cwindow)
+				end
+			elsif startup_ws
+				nc = con_descend_tiling_focused(workspace_get(startup_ws, nil))
+				if nc.type == CT_WORKSPACE
+					nc = focused
+				else
+					nc = tree_open_con(nil, cwindow)
+				end
+				if assignment = assignent_for(cwindow, A_TO_OUTPUT)
+					con_move_to_output_name(nc, assignment.dest_output, true)
+				end
+			else
+				if match && match.insert_where == M_BELOW
+					nc = tree_open_con(nc, cwindow)
+				end
+				if match && match.insert_where != M_BELOW
+					nc.swallow_head.remove(match)
+				end
+			end
+			if nc.window && nc.window != cwindow
+				if !restore_kill_placeholder(nc.window.id)
+				else
+					first = nc.swallow_head
+					nc.swallow_head.remove(first)
+				end
+			end
+			nc.window = cwindow
+			x_reinit(nc)
+			nc.border_width = geom.border_width
+			x_set_name(nc, name)
+			ws = con_get_workspace(nc)
+			fs = ws ? con_get_fullscreen_con(ws, CF_OUTPUT) : nil
+			if fs.nil?
+				fs = con_get_fullscreen_con(croot, CF_GLOBAL)
+			end
+			if xcb_reply_contains_atom(state_reply, A_NET_WM_STATE_FULLSCREEN)
+				if fs != nc
+					output = get_output_with_dimensions(Rect.new(geom.x, geom.y, geom.width, geom.height))
+				end
+				if !output.nil?
+					con_move_to_output(nc, output, false)
+				end
+				con_toggle_fullscreen(nc, CF_OUTPUT)
+			end
+			fs = nil
+		end
+		set_focus = false
+		if fs.nil?
+			if !cwindow.dock
+				current_output = con_get_output(focused)
+				target_output = con_get_output(ws)
+				if workspace_is_visible(ws) && current_output == target_output
+					set_focus = true
+				end
+			end
+		else
+			first = nc.parent.focus_head.first
+			if first != nc
+				nc.parent.focus_head.remove(nc)
+				nc.parent.insert_after(first)
+			end
+		end
+		want_floating = false
+		if xcb_reply_contins_atom(type_reply, A_NET_WM_WINDOW_TYPE_DIALOG) ||
+			 xcb_reply_contins_atom(type_reply, A_NET_WM_WINDOW_TYPE_UTILITY) ||
+			 xcb_reply_contins_atom(type_reply, A_NET_WM_WINDOW_TYPE_TOOLBAR) ||
+			 xcb_reply_contins_atom(type_reply, A_NET_WM_WINDOW_TYPE_SPLASH) ||
+			 xcb_reply_contins_atom(type_reply, A_NET_WM_STATE_MODAL) ||
+			 wm_size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MAX_SIZE &&
+			 wm_size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE &&
+			 wm_size_hints.min_height == wm_size_hints.min_height
+			 wm_size_hints.min_width == wm_size_hints.max_width
+			 want_floating = false
+		end
+	end
+
+	if xcb_reply_contains_atom(state_reply, A_NET_WM_STATE_STICKY)
+		nc.sticky = true
+	end
+
+	if cwindow.wm_desktop == NET_WM_DESKTOP_ALL && (ws.nil? || !con_is_internal(ws))
+		nc.sticky = true
+		want_floating = false
+	end
+
+	if cwindow.transient_for != XCB_NONE || (cwindow.leader != XCB_NONE && cwindow.leader != cwindow.id && con_by_window_id(cwindow.leader))
+		want_floating = false
+		if config.popup_during_fullscreen == PDF_LEAVE_FULLSCREEN && fs
+			con_toggle_fullscreen(fs, CF_OUTPUT)
+		elsif config.popup_during_fullscreen == PDF_SMART && fs && fs.window
+			transient_win = cwindow
+			until transient_win && transient_win.transient_for != XCB_NONE
+				if transient_win.transient_for == fs.window.id
+					set_focus = true
+					break
+				end
+				next_transient = con_by_window_id(transient_win.transient_for)
+				break if next_transient.nil? || transient_win == next_transient.window
+				transient_win = next_transient.window
+			end
+		end
+	end
+
+	if cwindow.dock
+		want_floating = false
+	end
+
+	if (wm_size_hints.flags & XCB_ICCCM_SIZE_HINT_US_POSITION ||
+		  wm_size_hints.flags & XCB_ICCCM_SIZE_HINT_P_POSITION) &&
+		 (wm_size_hints.flags & XCB_ICCCM_SIZE_HINT_US_SIZE ||
+		  wm_size_hints.flags & XCB_ICCCM_SIZE_HINT_P_SIZE)
+		geom.x = wm_size_hints.x
+		geom.y = wm_size_hints.y
+		geom.width = wm_size_hints.width
+		geom.height = wm_size_hints.height
+	end
+
+	if wm_size_hints.flags & XCB_ICCCM__SIZE_HINT_P_MIN_SIZE
+		nc.window.min_width = wm_size_hints.min_width
+		nc.window.min_height = wm_size_hints.min_height
+	end
+
+	if nc.geometry.width == 0
+		nc.geometry = Rect.new x: geom.x, y: geom.y, width: geom.width, height: geom.height
+	end
+
+	if motif_border_style != BS_NORMAL
+		if want_floating
+			con_set_border_style(nc, motif_border_style, config.default_floating_border_width)
+		else
+			con_set_border_style(nc, motif_border_style, config.default_border_width)
 		end
 	end
 end
