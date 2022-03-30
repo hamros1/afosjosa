@@ -274,4 +274,85 @@ def manage_window(window, cookie, needs_to_be_mapped)
 			con_set_border_style(nc, motif_border_style, config.default_border_width)
 		end
 	end
+
+	if cwindow.transient_for != XCB_NONE ||
+		 (cwindow.leader != XCB_NONE &&
+		 cwindow.leader != cwindow.id &&
+		 con_by_window_id(cwindow.leader))
+		want_floating = false
+		if config.popup_during_fullscreen == PDF_LEAVE_FULLSCREEN &&
+			 fs?
+			con_toggle_fullscreen(fs, CF_OUTPUT)
+		elsif config.popup_during_fullscreen == PDF_SMART &&
+					fs && fs.window
+			set_focus = con_find_transient_for_window(nc, fs.window.id)
+		end
+		if cwindow.dock
+			want_floating = false
+		end
+		if nc.geometry.width == 0
+			nc.geometry = Rect.new geom.x, geom.y, geom.width, geom.height
+		end
+		if motif_border_style != BS_NORMAL
+			if want_floating
+				con_set_border_style(nc, motif_border_style, config.default_floating_border_width)
+			else
+				con_set_border_style(nc, motif_border_style, config.default_border_width)
+			end
+		end
+		if want_floating
+			automatic = motif_border_style == BS_NORMAL
+			if floating_enable(nc, automatic_border)
+				nc.floating = FLOATING_AUTO_ON
+			end
+		end
+		if nc.current_border_width == -1
+			nc.current_border_width = want_floating ? config.default_border_width : config.default_border_width
+		end
+		values[0] = XCB_NONE
+		xcb_change_window_attributes(conn, window, XCB_CW_EVENT_MASK, values)
+		rcookie = xcb_reparent_window_checked(conn, window, nc.frame.id, 0, 0)
+		values[0] = CHILD_EVENT_MASK & ~XCB_EVENT_MASK_ENTER_WINDOW
+		xcb_change_window_attributes(conn, window, XCB_CW_EVENT_MASK, values)
+		xcb_flush(conn)
+		xcb_change_save_set(conn, XCB_SET_MODE_INSERT, window)
+		run_assignments(cwindow)
+		ws = con_get_workspace(nc)
+		if ws && !workspace_is_visible(ws)
+			ws.rect = ws.parent.rect
+			render_con(ws, true, false)
+			set_focus = false
+		end
+		render_con(croot, false, false)
+		ipc_send_window_event("new", nc)
+		if set_focus & assignment_for(cwindow, A_NO_FOCUS)
+			if !con_num_windows(ws)
+				set_focus = false
+			end
+		end
+		if set_focus
+			wm_user_time_reply = xcb_get_property_reply(conn, wm_user_time_cookie, nil)
+			if (wm_user_time_reply = xcb_get_property_value_length(wm_user_time_reply) &&
+				 wm_user_time = xcb_get_property_value(wm_user_time_reply)) &&
+				 wm_user_time[0] == 0
+				set_focus = false
+			end
+		else
+			xcb_discard_reply(conn, wm_user_time_cookie.sequence)
+		end
+		if set_focus
+			if nc.window.doesnt_accept_focus && !nc.window.needs_take_focus
+				set_focus = false
+			end
+		end
+		if set_focus && nc.mapped
+			con_activate(nc)
+		end
+		tree_render()
+
+		con_set_urgency(nc, urgency_hint)
+		cwindow.wm_desktop = NET_WM_DESKTOP_NONE
+		ewmh_update_wm_desktop()
+		output_push_sticky_windows(foucsed)
+	end
 end
