@@ -1,3 +1,11 @@
+struct Color
+	property red : Float64
+	property green : Float64
+	property blue : Float64
+	property alpha : Float64
+	property colorpixel : UInt32
+end
+
 macro return_unless_surface_initialized(surface)
 	if surface.id == XCB_NONE
 		puts "Surface #{} is not initialized, skipping drawing."

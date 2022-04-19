@@ -1,3 +1,7 @@
+FONT_TYPE_NONE = 0
+FONT_TYPE_XCB = 1
+FONT_TYPE_PANGO = 2
+
 def create_layout_with_dpi(cr)
 	context = pango_cairo_create_context(cr)
 	pango_cairo_context_set_resolution(context, get_dpi_value)

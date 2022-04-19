@@ -1,3 +1,6 @@
+CLOSEST_OUTPUT = 0
+FARTHEST_OUTPUT = 1
+
 def get_output_by_id(id)
 	outputs.each do |output|
 		if output.id == id

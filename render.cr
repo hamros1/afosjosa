@@ -1,3 +1,12 @@
+struct RenderParams
+	property x : Int32
+	property y : Int32
+	property deco_height : Int32
+	property rect : Rect
+	property children : Int32
+	property sizes : Int32
+end
+
 def render_deco_height
 	deco_height = config.font.height + 4
 	if config.font.height & 0x01
@@ -59,7 +68,6 @@ def render_con(con, render_fullscreen, already_in)
 		end
 		inset.width = 2 * con.border_width
 		inset.height = 2 * con.border_width
-
 		if !render_fullscreen && con.window.aspect_ratio > 0.0
 		end
 	end
@@ -92,7 +100,6 @@ def render_root(con, fullscreen)
 			render_con(output, false, false)
 		end
 	end
-
 	con.nodes_head.each do |output|
 		break if con_is_internal(output)
 		content = output_get_content(output)
@@ -184,7 +191,6 @@ def render_con_split(con, child, p, index)
 		child.rect.height += p.sizes[index]
 		p.y += child.rect.height
 	end
-
 	if con_is_leaf(child)
 		if child.border_style == BS_NORMAL
 			child.deco_rect.x = child.rect.x - con.rect.x

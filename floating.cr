@@ -1,3 +1,13 @@
+BORDER_LEFT = 1 << 0
+BORDER_RIGHT = 1 << 1
+BORDER_TOP = 1 << 2
+BORDER_BOTTOM = 1 << 3
+
+DRAGGING = 0
+DRAG_SUCCESS = 1
+DRAG_REVERT = 2
+DRAG_ABORT = 3
+
 def total_output_dimensions
 	return Rect.new(0, 0, root_screen.width_in_pixels, root_screen.height_in_pixels) if outputs.empty?
 	outputs_dimensions = Rect.new(0, 0, 0, 0)
