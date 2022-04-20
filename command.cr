@@ -46,9 +46,59 @@ def cmd_criteria_init(cmd)
 end
 
 def cmd_critera_match_windows(cmd)
+	puts "match specification finished, matching..."
+	old = owindows
+	_next = old.first
+	until _next == old.end
+		current = _next
+		_next = _next.next
+		puts "checking if con #{current.con} / #{current.con.name} matches"
+		accept_match = false
+		if current_match.con_id
+			accept_match = true
+			if current_match.con_id == current.con
+				puts "con_id matched."
+			else
+				puts "con_id does not match."
+				next
+			end
+			if current_match.mark && !current.con.marks_head.empty?
+				accept_match = true
+				matched_by_mark = false
+				current.con.marks_head.each do |mark|
+					next if !regex_matches(current_match.mark, mark.name)
+					puts "match by mark"
+					matched_by_mark = true
+					break
+				end
+				if !matched_by_mark
+					puts "mark does not match"
+					next
+				end
+			end
+			if current.con.window
+				if match_matches_window(current_match, current.con.window)
+					puts "matches window!"
+					accept_match = true
+				else
+					puts "doesn't match"
+					next
+				end
+			end
+			if accept_match
+				owindows.insert(current, -1)
+			else
+				next
+			end
+		end
+		owindows.each do |current|
+			puts "matching: #{current.con} / #{current.con.name}"
+		end
+	end
 end
 
 def cmd_crieria_add(cmd, ctype, cvalue)
+	match_parse_property(current_match, ctype, cvalue)
 end
 
 def move_matches_to_workspace(ws)
