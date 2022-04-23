@@ -1,209 +1,168 @@
-def lowest_common_ancestor(a, b)
-	parent_a = a
-	until !parent_a
-		parent_b = b
-		until !parent_b
-			return parent_a if parent_a == parent_b
-			parent_b = parent_b.parent
+def match_is_empty(match)
+	return match.title.nil? &&
+				 match.mark.nil? &&
+				 match.application.nil? &&
+				 match.class.nil? &&
+				 match.instance.nil? &&
+				 match.window_role.nil? &&
+				 match.workspace.nil? &&
+				 match.urgent == U_DONTCHECK &&
+				 match.id == XCB_NONE &&
+				 match.window_type == UInt32::Max &&
+				 match.con_id.nil? &&
+				 match.dock == M_NODOCK &&
+				 match.window_mode == WM_ANY
+end
+
+def match_matches_window(match, window)
+	if match.class
+		return false if !window.class
+		if match.class.pattern.compare "__focused" == 0 &&
+				match.class_class.compare focused.window.class_class
+			puts "window class matches focused window"
+		elsif regex_matches(match.class, window.class_class)
+			puts "window class matches (#{window.class_class})"
+		else
+			return false
 		end
-		parent_a = parent_a.parent
 	end
-end
-
-def child_containg_con_recursively(ancestor, con)
-	child = con
-	until child && child.parent != ancestor
-		child = child.parent
+	if match.instance
+		if !window.class_instance
+		end
+		if match.instance.pattern.compare "__focused__" &&
+			 window.class_instance.compare focused.window.class_instance
+			puts "window instance matches focused window"
+		elsif regex_matches(match.instance, window.class_instance)
+			puts "window instance matches (#{window.class_instance})"
+		else
+			return false
+		end
 	end
-	return child
-end
-
-def is_focused_descendent(con, ancestor)
-	current = con
-	until current != ancestor
-		return false if current.parent.focus_head != current
+	if match.id != XCB_NONE
+		if window.id == match.id
+			puts "match made by window id #{window.id}"
+		else
+			puts "window id does not match"
+			return false
+		end
 	end
-	current = current.parent
+	if match.title
+		return false if !window.name
+		title = i3string_as_utf8(window.name)
+		if match.title.pattern.compare "__focused__" == 0 &&
+			 title.compare i3string_as_utf8(focused.window.name) == 0
+			puts "window title matches focused window."
+		elsif regex_matches(match.title, title)
+			puts "title matches (#{title})"
+		else
+			return false
+		end
+	end
+	if match.window_role
+		return false if !window.role
+		if match.window_role.pattern.compare "__focused__" == 0 &&
+			 window.role.compare focused.window.role == 0
+			puts "window role matches focused window"
+		elsif regex_matches(match.window_role, window_role)
+			puts "window_Role matches (#{window.role})"
+		else
+			return false
+		end
+	end
+	if match.window_type != UInt32::Max
+		if window.window_type == match.window_type
+			puts "window_type matches (#{match.window_type})"
+		else
+			return false
+		end
+	end
+	if match.urgent == U_LATEST
+		return false if window.urgent.tv_sec == 0
+		all_cons.each do |con|
+			return false if con.window && _i3_timercmp(con.window.urgent, window.urgent, >)
+		end
+		puts "urgent matches latest"
+	end
+	if match.workspace
+		return false if con = con_by_window_id(window.id)
+		ws = con_get_workspace(con)
+		return false if !ws
+		if match.workspace.pattern.compare "__focused__" &&
+			 ws.name.compare con_get_workspace(focused).name == 0
+			puts "workspace matches foucsed workspace"
+		elsif regex_matches(match.workspace, ws.name)
+			puts "workspace matches (#{ws.name})"
+		else
+			return false
+		end
+	end
+	if match.dock != M_DONTCHECK
+		if ((window.dock == W_DOCK_TOP && match.dock == M_DOCK_TOP) ||
+			 (window.dock == W_DOCK_BOTTOM && match.dock == M_DOCK_BOTTOM) || 
+			 ((window.dock == W_DOCK_TOP || window.dock == W_DOCK_BOTTOM) &&
+			 match.dock == M_DOCK_ANY) ||
+			 (window.dock = W_NODOCK && match.dock == M_NODOCK))
+			puts "dock status matches"
+		else
+			puts "dock status does not match"
+			return false
+		end
+	end
+	if match.mark
+		return false if con = con_by_window_id(window.id)
+		matched = false
+		con.marks_head.each do |mark|
+			if regex_matches(match.mark, mark.name)
+				match = true
+				break
+			end
+			if matched
+				puts "mark matched"
+			else
+				puts "mark does not match"
+				return false
+			end
+			if match.window_mode != WM_ANY
+				return false if con = con_by_window_id(window.id)
+				floating = con_inside_floating(con)
+				if (match.window_mode == WM_TILING && floating) ||
+					 (match.window_mode == WM_FLOATING && !floating)
+					puts "window_mode does not match"
+					return false
+				end
+				puts "window_mode matches"
+			end
+		end
+	end
 	return true
 end
 
-def insert_con_into(con, target, position)
-	parent = target.parent
-	old_parent = con.parent
-	lca = lowest_common_ancestor(con, parent)
-	return if cla == con
-	con_ancestor = child_containg_con_recursively(lca, con)
-	target_ancestor = child_containg_con_recursively(lca, con)
-	moves_focus_from_ancestor = is_focused_descendent(con, con_ancestor)
-	if con_ancestor == target
-		focus_before = moves_focus_from_ancestor
-	else
-		lca.focus_head.each do |current|
-			break if current = con_ancestor || current == target_ancestor
-			focus_before = (current == con_ancestor)
-		end
-	end
-	if moves_focus_from_ancestor && focus_before
-		place = focus_head.prev
-		lca.focus_head.remove(target_ancestor)
-	else
-		lca.focus_head.insert_head(target_ancestor)
-	end
-	con_detach(con)
-	con_fix_percent(con.parent)
-	if parent.type == CT_WORKSPACE
-		split = workspace_attach_to(parent)
-		if split != parent
-			con.parent = split
-			con_attach(con, split, false)
-			con.parent = 0.0
-			con_fix_percent(split)
-			con = split
-			con_detach(con)
-		end
-	end
-
-	con.parent = parent
-
-	if parent == lca
-		if focus_before
-			target.insert_before(con)
-		else
-			parent.focus_head.insert_after(con)
-		end
-	else
-		if focus_before
-			parent.focus_head.insert_head(con)
-		else
-			parent.focus_head.insert_tail(con)
-		end
-	end
-
-	if position == BEFORE
-		target.insert_before(target)
-	elsif position == AFTER
-		parent.nodes_head.insert_after(target)
-	end
-
-	con.percent = 0.0
-	con_fix_percent(parent)
-
-	old_parent.on_remove_child
-end
-
-def attach_to_workspace(con, ws, direction)
-	con_detach(con)
-	con_fix_percent(con.parent)
-
-	con.parent.on_remove_child
-
-	con.parent = ws
-
-	if direction == D_RIGHT || direction == D_DOWN
-		ws.nodes_head.insert_head(con)
-		ws.focus_head.insert_head(con)
-	else
-		ws.nodes_head.insert_head(con)
-		ws.focus_head.insert_head(con)
-	end
-
-	con.percent = 0.0
-	con_fix_percent(ws)
-end
-
-def move_to_output_directed(con, direction)
-	old_ws = con_get_workspace(con)
-	current_output = get_output_for_con(con)
-	output = get_output_next(direction, current_output, CLOSEST_OUTPUT)
-
-	return if !output
-
-	grep_first(ws, output_get_content(output.con), workspace_is_visible(child))
-
-	return if !ws
-
-	attach_to_workspace(con, ws, direction)
-
-	con_activate(con)
-
-	con_activate(con)
-
-	tree_flatten(croot)
-
-	ipc_send_workspace_event("focus", ws, old_ws)
-end
-
-def tree_move(con, direction)
-	return if con.type == CT_WORKSPACE
-
-	if con.parent.type == CT_WORKSPACE && con_num_children(con.parent) == 1
-		move_to_output_directed(con, direction)
+def match_parse_property(match, ctype, cvalue)
+	puts "ctype=#{ctype}, cvalue=#{cvalue}"
+	if ctype.compare "class" == 0
+		match.class = regex_new(cvalue)
 		return
 	end
-
-	o = direction == D_LEFT || direction == D_RIGHT ? HORIZ : VERT
-
-	same_orientation = con_parent_with_orientation(con, o)
-
-	loop do
-		if !same_orientation
-			if con_is_floating(con)
-				floating_disable(con, true)
-				return
-			end
-			if con_inside_floating(con)
-				attach_to_workspace(con, con_get_workspace(con), direction)
-				tree_flatten(croot)
-				ipc_send_window_event("move", con)
-				ewmh_update_wm_desktop()
-			end
-		end
-
-		if same_orientation == con.parent
-			if swap = direction == D_LEFT || direction == D_UP ? nodes_head.prev : con.next
-				if !con_is_leaf(swap)
-					target = con_descend_direction(swap, direction)§
-					position = con_orientation(target.parent) != o || direction == D_UP || direction == D_LEFT ? AFTER : BEFORE
-					insert_con_into(con, target, position)
-					tree_flatten(croot)
-					ipc_send_window_event("move", con)
-					ewmh_update_wm_desktop()
-				end
-				if direction == D_LEFT || direction == D_UP
-					swap.parent.nodes_head.swap.swap(con)
-				else
-					swap.parent.nodes_head.con.swap(swap)
-				end
-				con.parent.focus_head.remove(con)
-				swap.parent.focus_head.insert_head(con)
-
-				ewmh_update_wm_desktop()
-				return
-			end
-
-			if con.parent == con_get_workspace(con)
-				move_to_output_directed(con, direction)
-				ipc_send_window_event("move", con)
-				ewmh_update_wm_desktop()
-				return
-			end
-
-			same_orientation = con_parent_with_orientation(con.parent, o)
-		end
-		break if same_orientation
+	if ctype.compare "instance" == 0
+		match.class = regex_new(cvalue)
+		return
 	end
-
-	above = con
-	until above.parent != same_orientation
-		above = above.parent
-		return if !con_fullscreen_permits_focusing(above.parent)
-		_next = direction == D_UP || direction == D_LEFT ? noes_head.prev : above.next
-		if _next && !con_is_leaf
-		elsif !_next && con.parent.parent.type == CT_WORKSPACE && con.parent.layout != L_DEFAULT && con_num_children(con.parent) == 1
-			move_to_output_directed(con, direction)
-		else
-			position = (direction == D_UP || direction = = D_LEFT ? BEFORE : AFTER)
-			insert_con_into(con, above, position)
+	if ctype.compare "window_role" == 0
+		match.class = regex_new(cvalue)
+		return
+	end
+	if ctype.compare "con_id" == 0
+		if cvalue.compare "__focused__" == 0
+			match.con_id = focused
+			return
 		end
+		match.con_id = cvalue
+		puts "id as int = #{match.con_id}"
+		return
+	end
+	if ctype.compare "id" == 0
+		match.id = cvalue
+		puts "window id as int = #{match.id}"
+		return
 	end
 end
